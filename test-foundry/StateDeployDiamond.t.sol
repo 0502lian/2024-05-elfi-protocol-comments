@@ -13,7 +13,7 @@ import {AccountFacet} from "../contracts/facets/AccountFacet.sol";
 import {PoolFacet} from "../contracts/facets/PoolFacet.sol";
 import {StakeFacet} from "../contracts/facets/StakeFacet.sol";
 import {MarketFacet} from "../contracts/facets/MarketFacet.sol";
-import {MarketManagerFacet} from "../contracts/facets/MarketManagerFacet.sol";
+import {MarketManagerFacet, MarketFactoryProcess} from "../contracts/facets/MarketManagerFacet.sol";
 import {OracleFacet} from "../contracts/facets/OracleFacet.sol";
 import {FeeFacet} from "../contracts/facets/FeeFacet.sol";
 import {PositionFacet} from "../contracts/facets/PositionFacet.sol";
@@ -35,6 +35,9 @@ import {Diamond} from "../contracts/router/Diamond.sol";
 import {DiamondInit} from "../contracts/router/DiamondInit.sol";
 import "./utils/HelperContract.t.sol";
 
+//libraries
+import {RoleAccessControl} from "../contracts/storage/RoleAccessControl.sol";
+
 import {MockToken} from "../contracts/mock/MockToken.sol";
 import {WETH} from "../contracts/mock/WETH.sol";
 
@@ -45,8 +48,15 @@ contract StateDeployDiamond is HelperContract {
     DiamondCutFacet dCutFacet;
     DiamondLoupeFacet dLoupe;
     DiamondInit dInit;
+
+    //address
     address public admin;
     address public developer;
+    address public account0;
+    address public account1;
+    address public account2;
+
+
 
     //Tokens    
     WETH public weth;
@@ -65,9 +75,8 @@ contract StateDeployDiamond is HelperContract {
 
     // deploys diamond and connects facets
     function setUp() public virtual {
-        admin =  makeAddr("admin");
-        developer = makeAddr("developer");
-        console2.log(admin);
+
+        creatAdminAndAccount();
 
         //deploy facets
         dInit = new DiamondInit();
@@ -98,13 +107,19 @@ contract StateDeployDiamond is HelperContract {
                                 ];
     
         // deploy diamond
-        diamond = new Diamond(address(dCutFacet), address(dLoupe), address(dInit), admin );
+        diamond = new Diamond(address(dCutFacet), address(dLoupe), address(dInit), developer );
 
         deployDiamondFacets();
         //tokens
         deployMockTokens();
         //vaults
         deployVaults();
+
+        //roles
+        configAccountRoal();
+
+        //config markets
+        configMarket();
         
     }
 
@@ -263,7 +278,7 @@ contract StateDeployDiamond is HelperContract {
         );
 
         
-        vm.prank(admin);
+        vm.prank(developer);
         //upgrade diamond
         DiamondCutFacet(address(diamond)).diamondCut(cut, address(0x0), "");
 
@@ -307,6 +322,103 @@ contract StateDeployDiamond is HelperContract {
         vm.stopPrank();
         console2.log('config vault role end....');
     }
+    //create accounts
+    function creatAdminAndAccount() internal{
+         admin =  makeAddr("admin");
+        developer = makeAddr("developer");
+        console2.log(admin);
+        account0 = makeAddr("account0");
+        account1 = makeAddr("account1");
+        account2 = makeAddr("account2");
+
+    }
+
+    //config account roal
+    function configAccountRoal() internal{
+
+        vm.startPrank(developer);
+        RoleAccessControlFacet roleFacet = RoleAccessControlFacet(address(diamond));
+        roleFacet.grantRole(developer, RoleAccessControl.ROLE_KEEPER);
+        roleFacet.grantRole(developer, RoleAccessControl.ROLE_CONFIG);
+
+        roleFacet.grantRole(account0, RoleAccessControl.ROLE_KEEPER);
+        roleFacet.grantRole(account0, RoleAccessControl.ROLE_CONFIG);
+
+        roleFacet.grantRole(account1, RoleAccessControl.ROLE_KEEPER);
+        roleFacet.grantRole(account1, RoleAccessControl.ROLE_CONFIG);
+
+        roleFacet.grantRole(account2, RoleAccessControl.ROLE_KEEPER);
+        roleFacet.grantRole(account2, RoleAccessControl.ROLE_CONFIG);
+        vm.stopPrank();
+        console2.log('config  roles end....');
+    }
+
+    //config market
+    function configMarket() internal{
+    //      symbol: {
+    //     code: 'ETHUSD',
+    //     stakeTokenName: 'xETH',
+    //     indexToken: 'WETH',
+    //     baseToken: 'WETH',
+    //     baseTokenName: 'ETH',
+    //   },
+
+//     {
+//   code: '0x4554485553440000000000000000000000000000000000000000000000000000',
+//   stakeTokenName: 'xETH',
+//   indexToken: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+//   baseToken: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+//   baseTokenName: 'ETH'
+// }
+    string memory marketSymbol = "ETHUSD";
+    bytes32 marketSymbolCode = 0x4554485553440000000000000000000000000000000000000000000000000000;
+    console2.log("config market start" ,marketSymbol);
+    MarketManagerFacet  marketManagerFacet = MarketManagerFacet(address(diamond));  
+    
+    vm.startPrank(developer);
+    MarketFactoryProcess.CreateMarketParams memory params = MarketFactoryProcess.CreateMarketParams(
+         marketSymbolCode,
+         "xETH",
+         address(weth),
+         address(weth));
+    
+    
+    marketManagerFacet.createMarket(params);
+    vm.stopPrank();
+    console2.log("created market end " ,marketSymbol);
+
+     }
+
+    //config market pool
+    function configMarketPool() internal{
+        //         config pool start ETHUSD
+        // {
+        //   stakeToken: '0xB0e21a16feE12F1c6f10BB3F0Cddca9873eDBb53',
+        //   config: {
+        //     assetTokens: [ '0x5FbDB2315678afecb367f032d93F642f64180aa3' ],
+        //     baseInterestRate: 6250000000,
+        //     poolLiquidityLimit: 80000n,
+        //     mintFeeRate: 120,
+        //     redeemFeeRate: 150,
+        //     poolPnlRatioLimit: 0,
+        //     collateralStakingRatioLimit: 0,
+        //     unsettledBaseTokenRatioLimit: 0,
+        //     unsettledStableTokenRatioLimit: 0,
+        //     poolStableTokenRatioLimit: 0,
+        //     poolStableTokenLossLimit: 0
+        //   }
+        // }
+        // config pool end ETHUSD
+
+        ConfigFacet configFacet = ConfigFacet(address(diamond));
+        console2.log("config pool start");
+        vm.prank(developer);
+        //configFacet.setPoolConfig(params);
+    
+        console2.log("config pool end");
+
+    }
+
 
     function test1HasThreeFacets() public {
         assertEq(facetAddressList.length, facetDependencies.length - 1);
