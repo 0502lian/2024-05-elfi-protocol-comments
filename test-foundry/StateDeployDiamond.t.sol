@@ -26,6 +26,11 @@ import {SwapFacet} from "../contracts/facets/SwapFacet.sol";
 import {FaucetFacet} from "../contracts/facets/FaucetFacet.sol";
 import {ReferralFacet} from "../contracts/facets/ReferralFacet.sol";
 
+import {LpVault} from "../contracts/vault/LpVault.sol";
+import {PortfolioVault} from "../contracts/vault/PortfolioVault.sol";
+import {TradeVault} from "../contracts/vault/TradeVault.sol";
+import {Vault} from "../contracts/vault/Vault.sol";
+
 import {Diamond} from "../contracts/router/Diamond.sol";
 import {DiamondInit} from "../contracts/router/DiamondInit.sol";
 import "./utils/HelperContract.t.sol";
@@ -41,11 +46,19 @@ contract StateDeployDiamond is HelperContract {
     DiamondLoupeFacet dLoupe;
     DiamondInit dInit;
     address public admin;
+    address public developer;
 
     //Tokens    
     WETH public weth;
     address public wbtc;
     address public usdc;
+    address public sol;
+
+    //Vaults
+    Vault public lpVault;
+    Vault public portfolioVault;
+    Vault public tradeVault;
+
 
     address[] facetAddressList;
     string[] facetDependencies;
@@ -53,6 +66,7 @@ contract StateDeployDiamond is HelperContract {
     // deploys diamond and connects facets
     function setUp() public virtual {
         admin =  makeAddr("admin");
+        developer = makeAddr("developer");
         console2.log(admin);
 
         //deploy facets
@@ -87,7 +101,10 @@ contract StateDeployDiamond is HelperContract {
         diamond = new Diamond(address(dCutFacet), address(dLoupe), address(dInit), admin );
 
         deployDiamondFacets();
+        //tokens
         deployMockTokens();
+        //vaults
+        deployVaults();
         
     }
 
@@ -256,11 +273,39 @@ contract StateDeployDiamond is HelperContract {
     }
 
     function deployMockTokens() internal{
-        vm.startPrank(admin);
+        console2.log('deploy MockTokens start....');
+        vm.startPrank(developer);
+
         weth = new WETH();
+        weth.mint(developer, 1000000000e18);
+
         wbtc = address(new MockToken("wbtc",18));
+        MockToken(payable(wbtc)).mint(developer, 1000000000e18);
+
         usdc = address(new MockToken("usdc",6));
+        MockToken(payable(usdc)).mint(developer, 1000000000e6);
+
+        sol = address(new MockToken("sol",9));
+         MockToken(payable(sol)).mint(developer, 1000000000e9);
         vm.stopPrank();
+        console2.log('deploy MockTokens end....');
+    }
+
+    function deployVaults() internal{
+        console2.log('config vault role start....');
+        vm.startPrank(developer);
+
+        lpVault = Vault(new LpVault(developer));
+        lpVault.grantAdmin(address(diamond));
+
+        tradeVault = Vault(new TradeVault(developer));
+        tradeVault.grantAdmin(address(diamond));
+
+        portfolioVault = Vault(new PortfolioVault(developer));
+        portfolioVault.grantAdmin(address(diamond));
+
+        vm.stopPrank();
+        console2.log('config vault role end....');
     }
 
     function test1HasThreeFacets() public {
