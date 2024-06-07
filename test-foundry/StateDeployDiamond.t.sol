@@ -38,11 +38,22 @@ import "./utils/HelperContract.t.sol";
 //libraries
 import {RoleAccessControl} from "../contracts/storage/RoleAccessControl.sol";
 
+//interface
+import {IConfig} from "../contracts/interfaces/IConfig.sol";
+import {IMarket} from "../contracts/interfaces/IMarket.sol";
+import {IPool}   from "../contracts/interfaces/IPool.sol";
+
+//storages
+import {AppPoolConfig} from "../contracts/storage/AppPoolConfig.sol";
+import { AppConfig} from "../contracts/storage/AppConfig.sol";
+
 import {MockToken} from "../contracts/mock/MockToken.sol";
 import {WETH} from "../contracts/mock/WETH.sol";
 
 contract StateDeployDiamond is HelperContract {
 
+    bytes32 constant marketSymbolCodeETH = 0x4554485553440000000000000000000000000000000000000000000000000000;
+    uint8 constant  usdDecimals = 6;
     //contract types of facets to be deployed
     Diamond diamond;
     DiamondCutFacet dCutFacet;
@@ -120,6 +131,8 @@ contract StateDeployDiamond is HelperContract {
 
         //config markets
         configMarket();
+
+
         
     }
 
@@ -355,42 +368,40 @@ contract StateDeployDiamond is HelperContract {
 
     //config market
     function configMarket() internal{
-    //      symbol: {
-    //     code: 'ETHUSD',
-    //     stakeTokenName: 'xETH',
-    //     indexToken: 'WETH',
-    //     baseToken: 'WETH',
-    //     baseTokenName: 'ETH',
-    //   },
-
-//     {
-//   code: '0x4554485553440000000000000000000000000000000000000000000000000000',
-//   stakeTokenName: 'xETH',
-//   indexToken: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
-//   baseToken: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
-//   baseTokenName: 'ETH'
-// }
+   
     string memory marketSymbol = "ETHUSD";
-    bytes32 marketSymbolCode = 0x4554485553440000000000000000000000000000000000000000000000000000;
+    
     console2.log("config market start" ,marketSymbol);
     MarketManagerFacet  marketManagerFacet = MarketManagerFacet(address(diamond));  
     
     vm.startPrank(developer);
     MarketFactoryProcess.CreateMarketParams memory params = MarketFactoryProcess.CreateMarketParams(
-         marketSymbolCode,
+         marketSymbolCodeETH,
          "xETH",
          address(weth),
          address(weth));
     
     
     marketManagerFacet.createMarket(params);
-    vm.stopPrank();
     console2.log("created market end " ,marketSymbol);
+
+    MarketFacet marketFacet = MarketFacet(address(diamond));
+    IMarket.SymbolInfo memory symbolInfo = marketFacet.getSymbol(marketSymbolCodeETH);
+
+    vm.stopPrank();
+
+    configMarketPool(symbolInfo.stakeToken);
+    //config sympol
+    setSymbolConfig();
+    console2.log("config market end" ,marketSymbol);
+
+   //usdPool
+    createAndConfigUsdPool();
 
      }
 
     //config market pool
-    function configMarketPool() internal{
+    function configMarketPool(address stakeToken) internal{
         //         config pool start ETHUSD
         // {
         //   stakeToken: '0xB0e21a16feE12F1c6f10BB3F0Cddca9873eDBb53',
@@ -409,14 +420,96 @@ contract StateDeployDiamond is HelperContract {
         //   }
         // }
         // config pool end ETHUSD
+        AppPoolConfig.LpPoolConfig memory config = AppPoolConfig.LpPoolConfig({
+            assetTokens: new address[](1),
+            baseInterestRate: 6250000000,
+            poolLiquidityLimit: 80000,
+            mintFeeRate: 120,
+            redeemFeeRate: 150,
+            poolPnlRatioLimit: 0,
+            //collateralStakingRatioLimit: 0, //@audit 没有使用了，是为什么？
+            unsettledBaseTokenRatioLimit: 0,
+            unsettledStableTokenRatioLimit: 0,
+            poolStableTokenRatioLimit: 0,
+            poolStableTokenLossLimit: 0
+          }); 
+        config.assetTokens[0] = address(weth);
+       
+
+        IConfig.LpPoolConfigParams memory params;
+        params.stakeToken = stakeToken;
+        params.config = config;
 
         ConfigFacet configFacet = ConfigFacet(address(diamond));
         console2.log("config pool start");
         vm.prank(developer);
-        //configFacet.setPoolConfig(params);
+        configFacet.setPoolConfig(params);
     
         console2.log("config pool end");
 
+    }
+
+    function setSymbolConfig() internal{
+
+        AppConfig.SymbolConfig memory config = AppConfig.SymbolConfig({
+                tickSize: 1000000,
+        maxLeverage: 2000000,
+        openFeeRate: 110,
+        closeFeeRate: 130,
+        maxLongOpenInterestCap: 10000000000000000000000000,
+        maxShortOpenInterestCap: 10000000000000000000000000,
+        longShortRatioLimit: 50000,
+        longShortOiBottomLimit: 100000000000000000000000
+        });
+        IConfig.SymbolConfigParams memory params;
+        params.symbol = marketSymbolCodeETH;
+        params.config = config;
+    
+
+        ConfigFacet configFacet = ConfigFacet(address(diamond));
+        console2.log("config symbol start ETHUSD");
+
+        vm.prank(developer);
+        configFacet.setSymbolConfig(params);
+
+        console2.log("config symbol end ETHUSD");
+    }
+
+    //create and config usdPoll
+    function createAndConfigUsdPool() internal{
+        console2.log("create usdPool start");
+        PoolFacet poolFacet = PoolFacet(address(diamond));
+        IPool.UsdPoolInfo memory usdPoolInfo = poolFacet.getUsdPool();
+        console2.log("usdPool stable Tokens number is ", usdPoolInfo.stableTokens.length);
+        
+        MarketManagerFacet  marketManagerFacet = MarketManagerFacet(address(diamond));  
+        ConfigFacet configFacet = ConfigFacet(address(diamond));
+
+        //create usdPool
+        vm.startPrank(developer);
+        marketManagerFacet.createStakeUsdPool("xUSD", usdDecimals);
+        console2.log("create usdPool end");
+
+        IConfig.UsdPoolConfigParams memory params;
+        AppPoolConfig.UsdPoolConfig memory config = AppPoolConfig.UsdPoolConfig(
+            {
+                poolLiquidityLimit: 80000,
+                mintFeeRate: 10,
+                redeemFeeRate: 10,
+                unsettledRatioLimit: 0,
+                supportStableTokens: new address[](1),
+                stableTokensBorrowingInterestRate: new uint256[](1)
+            }
+        );
+        config.supportStableTokens[0] = usdc;
+        config.stableTokensBorrowingInterestRate[0] = 625000000;
+        params.config = config;
+        //config
+        configFacet.setUsdPoolConfig(params);
+        vm.stopPrank();
+
+        console2.log("config usdPool end");
+        
     }
 
 
