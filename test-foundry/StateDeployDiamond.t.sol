@@ -123,11 +123,12 @@ contract StateDeployDiamond is HelperContract {
         deployDiamondFacets();
         //tokens
         deployMockTokens();
-        //vaults
-        deployVaults();
 
         //roles
         configAccountRoal();
+
+        //vaults
+        deployAndConfigVaults();
 
         //config markets
         configMarket();
@@ -319,21 +320,35 @@ contract StateDeployDiamond is HelperContract {
         console2.log('deploy MockTokens end....');
     }
 
-    function deployVaults() internal{
-        console2.log('config vault role start....');
+    function deployAndConfigVaults() internal{
+        
         vm.startPrank(developer);
-
+        console2.log('develop vault  start....');
         lpVault = Vault(new LpVault(developer));
-        lpVault.grantAdmin(address(diamond));
-
         tradeVault = Vault(new TradeVault(developer));
-        tradeVault.grantAdmin(address(diamond));
-
         portfolioVault = Vault(new PortfolioVault(developer));
+        console2.log('develop vault  end....');
+
+        console2.log('config vault role start....');
+        lpVault.grantAdmin(address(diamond));
+        tradeVault.grantAdmin(address(diamond));
         portfolioVault.grantAdmin(address(diamond));
+        console2.log('config vault role end....');
+
+        console2.log('config diamond vault  start....');
+
+        ConfigFacet configFacet = ConfigFacet(address(diamond));
+
+        IConfig.VaultConfigParams memory params = IConfig.VaultConfigParams(
+            address(lpVault), address(tradeVault), address(portfolioVault));
+
+        configFacet.setVaultConfig(params);
+        
+
+        console2.log('config diamond vault  end....');
 
         vm.stopPrank();
-        console2.log('config vault role end....');
+        
     }
     //create accounts
     function creatAdminAndAccount() internal{
