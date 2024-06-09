@@ -46,6 +46,10 @@ import {IPool}   from "../contracts/interfaces/IPool.sol";
 //storages
 import {AppPoolConfig} from "../contracts/storage/AppPoolConfig.sol";
 import { AppConfig} from "../contracts/storage/AppConfig.sol";
+import { AppTradeConfig} from "../contracts/storage/AppTradeConfig.sol";
+import { AppTradeTokenConfig} from "../contracts/storage/AppTradeTokenConfig.sol";
+
+
 
 import {MockToken} from "../contracts/mock/MockToken.sol";
 import {WETH} from "../contracts/mock/WETH.sol";
@@ -133,7 +137,8 @@ contract StateDeployDiamond is HelperContract {
         //config markets
         configMarket();
 
-
+        //config common
+        configCommon();
         
     }
 
@@ -384,34 +389,34 @@ contract StateDeployDiamond is HelperContract {
     //config market
     function configMarket() internal{
    
-    string memory marketSymbol = "ETHUSD";
-    
-    console2.log("config market start" ,marketSymbol);
-    MarketManagerFacet  marketManagerFacet = MarketManagerFacet(address(diamond));  
-    
-    vm.startPrank(developer);
-    MarketFactoryProcess.CreateMarketParams memory params = MarketFactoryProcess.CreateMarketParams(
-         marketSymbolCodeETH,
-         "xETH",
-         address(weth),
-         address(weth));
-    
-    
-    marketManagerFacet.createMarket(params);
-    console2.log("created market end " ,marketSymbol);
+        string memory marketSymbol = "ETHUSD";
+        
+        console2.log("config market start" ,marketSymbol);
+        MarketManagerFacet  marketManagerFacet = MarketManagerFacet(address(diamond));  
+        
+        vm.startPrank(developer);
+        MarketFactoryProcess.CreateMarketParams memory params = MarketFactoryProcess.CreateMarketParams(
+            marketSymbolCodeETH,
+            "xETH",
+            address(weth),
+            address(weth));
+        
+        
+        marketManagerFacet.createMarket(params);
+        console2.log("created market end " ,marketSymbol);
 
-    MarketFacet marketFacet = MarketFacet(address(diamond));
-    IMarket.SymbolInfo memory symbolInfo = marketFacet.getSymbol(marketSymbolCodeETH);
+        MarketFacet marketFacet = MarketFacet(address(diamond));
+        IMarket.SymbolInfo memory symbolInfo = marketFacet.getSymbol(marketSymbolCodeETH);
 
-    vm.stopPrank();
+        vm.stopPrank();
 
-    configMarketPool(symbolInfo.stakeToken);
-    //config sympol
-    setSymbolConfig();
-    console2.log("config market end" ,marketSymbol);
+        configMarketPool(symbolInfo.stakeToken);
+        //config sympol
+        setSymbolConfig();
+        console2.log("config market end" ,marketSymbol);
 
-   //usdPool
-    createAndConfigUsdPool();
+        //usdPool
+        createAndConfigUsdPool();
 
      }
 
@@ -488,6 +493,99 @@ contract StateDeployDiamond is HelperContract {
         configFacet.setSymbolConfig(params);
 
         console2.log("config symbol end ETHUSD");
+    }
+
+    //config common
+    function configCommon() internal {
+
+        console2.log("config common start");
+        IConfig.CommonConfigParams memory params;
+        AppConfig.ChainConfig memory chainConfig = AppConfig.ChainConfig({
+            wrapperToken: address(weth),
+            mintGasFeeLimit: 1500000,
+            redeemGasFeeLimit: 1500000,
+            placeIncreaseOrderGasFeeLimit: 1500000,
+            placeDecreaseOrderGasFeeLimit: 1500000,
+            positionUpdateMarginGasFeeLimit: 1500000,
+            positionUpdateLeverageGasFeeLimit: 1500000,
+            withdrawGasFeeLimit: 1500000,
+            claimRewardsGasFeeLimit: 1500000
+        });
+
+        AppTradeConfig.TradeConfig memory tradeConfig = AppTradeConfig.TradeConfig({
+            tradeTokens: new address[](2),
+            tradeTokenConfigs: new AppTradeTokenConfig.TradeTokenConfig[](2) ,
+            minOrderMarginUSD: 10000000000000000000,
+            availableCollateralRatio: 120000,
+            crossLtvLimit: 120000,
+            maxMaintenanceMarginRate: 1000,
+            fundingFeeBaseRate: 20000000000,
+            maxFundingBaseRate: 200000000000,
+            tradingFeeStakingRewardsRatio: 27000,
+            tradingFeePoolRewardsRatio: 63000,
+            tradingFeeUsdPoolRewardsRatio: 10000,
+            borrowingFeeStakingRewardsRatio: 27000,
+            borrowingFeePoolRewardsRatio: 63000,
+            autoReduceProfitFactor: 0,
+            autoReduceLiquidityFactor: 0,
+            swapSlipperTokenFactor: 5000
+        });
+
+        tradeConfig.tradeTokens[0] = address(weth);
+        tradeConfig.tradeTokens[1] = usdc;
+
+         tradeConfig.tradeTokenConfigs[0] = AppTradeTokenConfig.TradeTokenConfig({
+            isSupportCollateral: true,
+            precision: 6,
+            discount: 99000,
+            collateralUserCap: 10000000000000000000,
+            collateralTotalCap: 10000000000000000000000,
+            liabilityUserCap: 100000000000000000,
+            liabilityTotalCap: 5000000000000000000,
+            interestRateFactor: 10,
+            liquidationFactor: 5000
+            });
+
+        tradeConfig.tradeTokenConfigs[1] = AppTradeTokenConfig.TradeTokenConfig({
+            isSupportCollateral: true,
+            precision: 2,
+            discount: 99000,
+            collateralUserCap: 200000000000,
+            collateralTotalCap: 200000000000000,
+            liabilityUserCap: 5000000000,
+            liabilityTotalCap: 1000000000000,
+            interestRateFactor: 10,
+            liquidationFactor: 5000
+            });
+
+
+    
+        AppPoolConfig.StakeConfig memory stakeConfig = AppPoolConfig.StakeConfig({
+            minPrecisionMultiple: 11,
+            collateralProtectFactor: 500,
+            collateralFactor: 5000,
+            mintFeeStakingRewardsRatio: 27000,
+            mintFeePoolRewardsRatio: 63000,
+            redeemFeeStakingRewardsRatio: 27000,
+            redeemFeePoolRewardsRatio: 63000,
+            poolRewardsIntervalLimit: 0,
+            minApr: 20000,
+            maxApr: 2000000
+            });
+
+
+        params.chainConfig = chainConfig;
+        params.tradeConfig = tradeConfig;
+        params.stakeConfig = stakeConfig;
+        params.uniswapRouter = address(0);    
+
+
+        ConfigFacet configFacet = ConfigFacet(address(diamond));
+        vm.prank(developer);
+        configFacet.setConfig(params);
+
+        console2.log("config common end");
+
     }
 
     //create and config usdPoll
