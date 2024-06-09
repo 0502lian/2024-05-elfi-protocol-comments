@@ -42,6 +42,7 @@ import {RoleAccessControl} from "../contracts/storage/RoleAccessControl.sol";
 import {IConfig} from "../contracts/interfaces/IConfig.sol";
 import {IMarket} from "../contracts/interfaces/IMarket.sol";
 import {IPool}   from "../contracts/interfaces/IPool.sol";
+import {IStake} from "../contracts/interfaces/IStake.sol";
 
 //storages
 import {AppPoolConfig} from "../contracts/storage/AppPoolConfig.sol";
@@ -70,6 +71,7 @@ contract StateDeployDiamond is HelperContract {
     address public account0;
     address public account1;
     address public account2;
+    address public user0;
 
 
 
@@ -83,6 +85,7 @@ contract StateDeployDiamond is HelperContract {
     Vault public lpVault;
     Vault public portfolioVault;
     Vault public tradeVault;
+    address public xEth;
 
 
     address[] facetAddressList;
@@ -127,6 +130,7 @@ contract StateDeployDiamond is HelperContract {
         deployDiamondFacets();
         //tokens
         deployMockTokens();
+        giveUserMockTokens();
 
         //roles
         configAccountRoal();
@@ -325,6 +329,22 @@ contract StateDeployDiamond is HelperContract {
         console2.log('deploy MockTokens end....');
     }
 
+    function giveUserMockTokens() internal{
+        vm.startPrank(developer);
+        weth.transfer(user0, 100e18);
+        weth.transfer(account0, 100e18);
+        weth.transfer(account1, 100e18);
+        MockToken(payable(usdc)).transfer(account0, 100e6);
+        MockToken(payable(usdc)).transfer(account1, 100e6);
+        MockToken(payable(usdc)).transfer(user0, 100e6);
+        vm.stopPrank();
+
+        deal(user0, 100e18);
+        deal(developer, 100e18);
+        deal(account0, 100e18);
+        deal(account1, 100e10);
+    }
+
     function deployAndConfigVaults() internal{
         
         vm.startPrank(developer);
@@ -363,6 +383,8 @@ contract StateDeployDiamond is HelperContract {
         account0 = makeAddr("account0");
         account1 = makeAddr("account1");
         account2 = makeAddr("account2");
+
+        user0 = makeAddr("user0");
 
     }
 
@@ -409,6 +431,8 @@ contract StateDeployDiamond is HelperContract {
         IMarket.SymbolInfo memory symbolInfo = marketFacet.getSymbol(marketSymbolCodeETH);
 
         vm.stopPrank();
+
+        xEth = symbolInfo.stakeToken;
 
         configMarketPool(symbolInfo.stakeToken);
         //config sympol
@@ -628,6 +652,50 @@ contract StateDeployDiamond is HelperContract {
 
     function test1HasThreeFacets() public {
         assertEq(facetAddressList.length, facetDependencies.length - 1);
+    }
+
+    function testMintxEthWithWETH() public{
+       
+        uint256  preBalance = weth.balanceOf(user0);
+        uint256 preVaultBalance = weth.balanceOf(address(lpVault));
+        uint256 preMarketBalance = weth.balanceOf(xEth);
+
+        console2.log("preBalance is ", preBalance);
+        console2.log("preVaultBalance is ", preVaultBalance );
+        console2.log("preMarketBalance is ", preMarketBalance );
+
+        uint256 tokenPrice = 1800e8;
+        uint256 requestTokenAmount = 1e18;
+        uint256 executionFee = 2e15;
+
+        StakeFacet stakeFacet = StakeFacet(address(diamond));
+
+        IStake.MintStakeTokenParams memory params = IStake.MintStakeTokenParams({
+        stakeToken: xEth,
+        requestToken: address(weth),
+        requestTokenAmount: requestTokenAmount,
+        walletRequestTokenAmount: requestTokenAmount,
+        minStakeAmount: 0,
+        isCollateral: false,
+        isNativeToken: false,
+        executionFee: executionFee
+       });
+       
+        vm.startPrank(user0);
+        weth.approve(address(diamond), requestTokenAmount);
+        stakeFacet.createMintStakeTokenRequest{value:executionFee }(params);
+
+        vm.stopPrank();
+
+
+        uint256  afterBalance = weth.balanceOf(user0);
+        uint256 afterLpVaultBalance = weth.balanceOf(address(lpVault));
+        uint256 afterMarketBalance = weth.balanceOf(xEth);
+
+        console2.log("afterBalance is ", afterBalance);
+        console2.log("afterLpVaultBalance is ", afterLpVaultBalance );
+        console2.log("afterMarketBalance is ", afterMarketBalance );
+
     }
 
 
