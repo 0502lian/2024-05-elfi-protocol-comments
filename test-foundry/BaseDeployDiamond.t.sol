@@ -43,13 +43,14 @@ import {IConfig} from "../contracts/interfaces/IConfig.sol";
 import {IMarket} from "../contracts/interfaces/IMarket.sol";
 import {IPool}   from "../contracts/interfaces/IPool.sol";
 import {IStake} from "../contracts/interfaces/IStake.sol";
+import {IOrder} from "../contracts/interfaces/IOrder.sol";
 
 //storages
 import {AppPoolConfig} from "../contracts/storage/AppPoolConfig.sol";
 import { AppConfig} from "../contracts/storage/AppConfig.sol";
 import { AppTradeConfig} from "../contracts/storage/AppTradeConfig.sol";
 import { AppTradeTokenConfig} from "../contracts/storage/AppTradeTokenConfig.sol";
-
+import {Order} from "../contracts/storage/Order.sol";
 
 
 import {MockToken} from "../contracts/mock/MockToken.sol";
@@ -58,6 +59,8 @@ import {WETH} from "../contracts/mock/WETH.sol";
 contract BaseDeployDiamond is HelperContract {
 
     bytes32 constant marketSymbolCodeETH = 0x4554485553440000000000000000000000000000000000000000000000000000;
+    string constant marketSymbol = "ETHUSD";
+    
     uint8 constant  usdDecimals = 6;
     //contract types of facets to be deployed
     Diamond diamond;
@@ -72,6 +75,7 @@ contract BaseDeployDiamond is HelperContract {
     address public account1;
     address public account2;
     address public user0;
+    address public user1;
 
 
 
@@ -332,14 +336,17 @@ contract BaseDeployDiamond is HelperContract {
     function giveUserMockTokens() internal{
         vm.startPrank(developer);
         weth.transfer(user0, 100e18);
+        weth.transfer(user1, 100e18);
         weth.transfer(account0, 100e18);
         weth.transfer(account1, 100e18);
         MockToken(payable(usdc)).transfer(account0, 100e6);
         MockToken(payable(usdc)).transfer(account1, 100e6);
         MockToken(payable(usdc)).transfer(user0, 100e6);
+        MockToken(payable(usdc)).transfer(user1, 100e6);
         vm.stopPrank();
 
         deal(user0, 100e18);
+        deal(user1, 100e18);
         deal(developer, 100e18);
         deal(account0, 100e18);
         deal(account1, 100e10);
@@ -385,6 +392,7 @@ contract BaseDeployDiamond is HelperContract {
         account2 = makeAddr("account2");
 
         user0 = makeAddr("user0");
+        user1 = makeAddr("user1");
 
     }
 
@@ -411,7 +419,7 @@ contract BaseDeployDiamond is HelperContract {
     //config market
     function configMarket() internal{
    
-        string memory marketSymbol = "ETHUSD";
+        //string memory marketSymbol = "ETHUSD";
         
         console2.log("config market start" ,marketSymbol);
         MarketManagerFacet  marketManagerFacet = MarketManagerFacet(address(diamond));  
@@ -446,24 +454,7 @@ contract BaseDeployDiamond is HelperContract {
 
     //config market pool
     function configMarketPool(address stakeToken) internal{
-        //         config pool start ETHUSD
-        // {
-        //   stakeToken: '0xB0e21a16feE12F1c6f10BB3F0Cddca9873eDBb53',
-        //   config: {
-        //     assetTokens: [ '0x5FbDB2315678afecb367f032d93F642f64180aa3' ],
-        //     baseInterestRate: 6250000000,
-        //     poolLiquidityLimit: 80000n,
-        //     mintFeeRate: 120,
-        //     redeemFeeRate: 150,
-        //     poolPnlRatioLimit: 0,
-        //     collateralStakingRatioLimit: 0,
-        //     unsettledBaseTokenRatioLimit: 0,
-        //     unsettledStableTokenRatioLimit: 0,
-        //     poolStableTokenRatioLimit: 0,
-        //     poolStableTokenLossLimit: 0
-        //   }
-        // }
-        // config pool end ETHUSD
+       
         AppPoolConfig.LpPoolConfig memory config = AppPoolConfig.LpPoolConfig({
             assetTokens: new address[](1),
             baseInterestRate: 6250000000,

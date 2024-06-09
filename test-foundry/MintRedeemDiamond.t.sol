@@ -14,7 +14,7 @@ contract MintRedeemDiamond  is BaseDeployDiamond{
         super.setUp();
     }
 
- function testMintxEthWithWETH() public{
+    function testMintxEthWithWETH() public{
        
         uint256  preBalance = weth.balanceOf(user0);
         uint256 preVaultBalance = weth.balanceOf(address(lpVault));
@@ -84,6 +84,46 @@ contract MintRedeemDiamond  is BaseDeployDiamond{
 
         // const realRequestTokenAmount = requestTokenAmount - mintFee
         
+
+    }
+
+    function testOrderCreateAndExecute() public{
+        uint256  preBalance = weth.balanceOf(user1);
+        uint256 preTradeVaultBalance = weth.balanceOf(address(tradeVault));
+        uint256 preMarketBalance = weth.balanceOf(xEth);
+
+        console2.log("preBalance is ", preBalance);
+        console2.log("preTradeVaultBalance is ", preTradeVaultBalance );
+        console2.log("preMarketBalance is ", preMarketBalance );
+
+        uint256 orderMargin = 1e18;
+        uint256 executionFee = 2e15;
+
+        OrderFacet orderFacet = OrderFacet(payable (address(diamond)));
+
+        IOrder.PlaceOrderParams memory params = IOrder.PlaceOrderParams({
+            symbol: marketSymbolCodeETH,
+            orderSide: Order.Side.LONG,
+            posSide: Order.PositionSide.INCREASE,
+            orderType: Order.Type.MARKET,
+            stopType: Order.StopType.NONE,
+            isCrossMargin: false,
+            marginToken: address(weth),
+            qty: 0,
+            leverage: 10e5,
+            triggerPrice: 0,
+            acceptablePrice: 1900e8,
+            executionFee: executionFee,
+            placeTime: 0,
+            orderMargin: orderMargin,
+            isNativeToken: false
+        });
+
+        vm.startPrank(user1);
+        weth.approve(address(diamond), orderMargin);
+        orderFacet.createOrderRequest{value: executionFee}(params);
+
+        vm.stopPrank();
 
     }
 }
