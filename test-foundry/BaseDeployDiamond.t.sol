@@ -82,7 +82,7 @@ contract BaseDeployDiamond is HelperContract {
     //Tokens    
     WETH public weth;
     address public wbtc;
-    address public usdc;
+    address payable public usdc;
     address public sol;
 
     //Vaults
@@ -90,6 +90,7 @@ contract BaseDeployDiamond is HelperContract {
     Vault public portfolioVault;
     Vault public tradeVault;
     address public xEth;
+    address public xUSD;
 
 
     address[] facetAddressList;
@@ -324,7 +325,7 @@ contract BaseDeployDiamond is HelperContract {
         wbtc = address(new MockToken("wbtc",18));
         MockToken(payable(wbtc)).mint(developer, 1000000000e18);
 
-        usdc = address(new MockToken("usdc",6));
+        usdc = payable(address(new MockToken("usdc",6)));
         MockToken(payable(usdc)).mint(developer, 1000000000e6);
 
         sol = address(new MockToken("sol",9));
@@ -339,10 +340,10 @@ contract BaseDeployDiamond is HelperContract {
         weth.transfer(user1, 100e18);
         weth.transfer(account0, 100e18);
         weth.transfer(account1, 100e18);
-        MockToken(payable(usdc)).transfer(account0, 100e6);
-        MockToken(payable(usdc)).transfer(account1, 100e6);
-        MockToken(payable(usdc)).transfer(user0, 100e6);
-        MockToken(payable(usdc)).transfer(user1, 100e6);
+        MockToken(payable(usdc)).transfer(account0, 10000e6);
+        MockToken(payable(usdc)).transfer(account1, 10000e6);
+        MockToken(payable(usdc)).transfer(user0, 10000e6);
+        MockToken(payable(usdc)).transfer(user1, 10000e6);
         vm.stopPrank();
 
         deal(user0, 100e18);
@@ -615,7 +616,7 @@ contract BaseDeployDiamond is HelperContract {
 
         //create usdPool
         vm.startPrank(developer);
-        marketManagerFacet.createStakeUsdPool("xUSD", usdDecimals);
+        xUSD = marketManagerFacet.createStakeUsdPool("xUSD", usdDecimals);
         console2.log("create usdPool end");
 
         IConfig.UsdPoolConfigParams memory params;
